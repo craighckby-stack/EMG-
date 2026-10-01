@@ -34,10 +34,10 @@ export class SiphonEngine {
       }
 
       const timestamp = Date.now();
-      const stampedFragments = fragments.map(f => ({
-        ...f,
+      const stampedFragments = fragments.map(fragment => ({
+        ...fragment,
         ancestry: `${this.currentGeneration}::${timestamp}`,
-        weight: this.calculateInitialWeight(f)
+        weight: this.calculateInitialWeight(fragment)
       }));
 
       return { success: true, data: stampedFragments };
@@ -53,12 +53,12 @@ export class SiphonEngine {
 
   private parseDNA(raw: string): DNAFragment[] {
     const patternRegex = /\[PATTERN:\s*(.*?),?\s*STRATEGY:\s*(.*?)\]/g;
-    const matches = [...raw.matchAll(patternRegex)];
+    const patternMatches = [...raw.matchAll(patternRegex)];
 
-    if (matches.length > 0) {
-      return matches.map(m => ({
-        title: m[1]?.trim() || 'Pattern',
-        mutation: m[2]?.trim() || 'Strategy',
+    if (patternMatches.length > 0) {
+      return patternMatches.map(match => ({
+        title: match[1]?.trim() || 'Pattern',
+        mutation: match[2]?.trim() || 'Strategy',
         ancestry: "pending",
         weight: 0
       }));
@@ -66,9 +66,9 @@ export class SiphonEngine {
 
     const exportMatches = [...raw.matchAll(/export\s+(?:function|const|class)\s+([a-zA-Z0-9_]+)/g)];
     if (exportMatches.length > 0) {
-      return exportMatches.map(m => ({
-        title: `Exported Symbol: ${m[1]}`,
-        mutation: `Refactor ${m[1]} with Sovereign Governance`,
+      return exportMatches.map(match => ({
+        title: `Exported Symbol: ${match[1]}`,
+        mutation: `Refactor ${match[1]} with Sovereign Governance`,
         ancestry: "pending",
         weight: 0.7
       }));
