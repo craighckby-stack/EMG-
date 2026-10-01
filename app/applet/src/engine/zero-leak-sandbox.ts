@@ -3,9 +3,11 @@
  * WeakMap-backed execution isolation to prevent memory leaks during dynamic module loading and mutation execution.
  */
 
+export type SandboxStatus = 'active' | 'completed' | 'failed';
+
 export interface SandboxContext {
   readonly createdAt: number;
-  readonly status: 'active' | 'completed' | 'failed';
+  readonly status: SandboxStatus;
   readonly taskName?: string;
   readonly error?: string;
   readonly durationMs?: number;
