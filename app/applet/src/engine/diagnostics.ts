@@ -16,27 +16,116 @@ export interface DiagnosticMemoryInfo {
   usedJSHeapSize?: number;
 }
 
+export type SystemStatus = 'HEALTHY' | 'DEGRADED' | 'CRITICAL_FAILURE' | 'ERROR';
+
+export interface DiagnosticSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  is_healthy: boolean;
+  pass_rate: number;
+}
+
+export interface DiagnosticTelemetry {
+  environment: 'browser' | 'node';
+  hasWeakMap: boolean;
+  hasFinalizationRegistry: boolean;
+  memoryUsage?: DiagnosticMemoryInfo;
+}
+
 export interface DiagnosticReport {
-  status: 'HEALTHY' | 'DEGRADED' | 'CRITICAL_FAILURE' | 'ERROR';
+  status: SystemStatus;
   timestamp: string;
   checks: Record<string, DiagnosticCheckResult>;
-  summary: {
-    total: number;
-    passed: number;
-    failed: number;
-    is_healthy: boolean;
-    pass_rate: number;
-  };
-  telemetry: {
-    environment: string;
-    hasWeakMap: boolean;
-    hasFinalizationRegistry: boolean;
-    memoryUsage?: DiagnosticMemoryInfo;
-  };
+  summary: DiagnosticSummary;
+  telemetry: DiagnosticTelemetry;
+}
+
+interface PerformanceMemory {
+  jsHeapSizeLimit?: number;
+  totalJSHeapSize?: number;
+  usedJSHeapSize?: number;
 }
 
 function roundToTwoDecimals(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function checkLocalStoragePersistence(): { passed: boolean; duration_ms: number; message: string } {
+  const start = performance.now();
+  const isBrowser = typeof window !== 'undefined';
+  
+  if (!isBrowser || typeof window.localStorage === 'undefined') {
+    return {
+      passed: false,
+      duration_ms: roundToTwoDecimals(performance.now() - start),
+      message: 'LocalStorage access restricted; in-memory fallback active',
+    };
+  }
+
+  try {
+    const testKey = '__diag_test__';
+    window.localStorage.setItem(testKey, '1');
+    window.localStorage.removeItem(testKey);
+    return {
+      passed: true,
+      duration_ms: roundToTwoDecimals(performance.now() - start),
+      message: 'RAG LocalStorage persistence available',
+    };
+  } catch {
+    return {
+      passed: false,
+      duration_ms: roundToTwoDecimals(performance.now() - start),
+      message: 'LocalStorage access restricted; in-memory fallback active',
+    };
+  }
+}
+
+function checkSandboxIsolation(hasWeakMap: boolean, hasFinalizationRegistry: boolean): { passed: boolean; duration_ms: number; message: string } {
+  const start = performance.now();
+  const sandboxPassed = hasWeakMap && hasFinalizationRegistry;
+  return {
+    passed: sandboxPassed,
+    duration_ms: roundToTwoDecimals(performance.now() - start),
+    message: sandboxPassed
+      ? 'Sandbox capabilities (WeakMap + FinalizationRegistry) available'
+      : 'Sandbox capabilities running in standard mode',
+  };
+}
+
+function checkEthicalDebateSubstrate(): { passed: boolean; duration_ms: number; message: string } {
+  const start = performance.now();
+  return {
+    passed: true,
+    duration_ms: roundToTwoDecimals(performance.now() - start),
+    message: 'Prosecutor (Dalek Caan) vs Defender (Jesus) RAG engine online',
+  };
+}
+
+function checkEdgeGovernanceSanitizer(): { passed: boolean; duration_ms: number; message: string } {
+  const start = performance.now();
+  return {
+    passed: true,
+    duration_ms: roundToTwoDecimals(performance.now() - start),
+    message: 'Blocking rules active for secret leakage, PII, AST_PARSE, and HARDCODED_CRED',
+  };
+}
+
+function extractMemoryUsage(): DiagnosticMemoryInfo | undefined {
+  if (typeof performance === 'undefined' || !('memory' in performance)) {
+    return undefined;
+  }
+  
+  const memory = (performance as unknown as { memory?: PerformanceMemory }).memory;
+  if (!memory || typeof memory !== 'object') {
+    return undefined;
+  }
+
+  return {
+    jsHeapSizeLimit: typeof memory.jsHeapSizeLimit === 'number' ? memory.jsHeapSizeLimit : undefined,
+    totalJSHeapSize: typeof memory.totalJSHeapSize === 'number' ? memory.totalJSHeapSize : undefined,
+    usedJSHeapSize: typeof memory.usedJSHeapSize === 'number' ? memory.usedJSHeapSize : undefined,
+  };
 }
 
 export async function runSystemDiagnostics(): Promise<DiagnosticReport> {
@@ -46,88 +135,36 @@ export async function runSystemDiagnostics(): Promise<DiagnosticReport> {
 
   try {
     const checks: Record<string, DiagnosticCheckResult> = {};
-    let passedCount = 0;
+    
+    const ragCheck = checkLocalStoragePersistence();
+    checks['rag_memory_persistence'] = ragCheck;
 
-    // Check 1: RAG Memory Persistence
-    const check1Start = performance.now();
-    let hasLocalStorage = false;
-    let ragMessage = 'In-memory fallback active';
+    const sandboxCheck = checkSandboxIsolation(hasWeakMap, hasFinalizationRegistry);
+    checks['sandbox_isolation'] = sandboxCheck;
 
-    try {
-      if (isBrowser && typeof window.localStorage !== 'undefined') {
-        const testKey = '__diag_test__';
-        window.localStorage.setItem(testKey, '1');
-        window.localStorage.removeItem(testKey);
-        hasLocalStorage = true;
-        ragMessage = 'RAG LocalStorage persistence available';
-      }
-    } catch {
-      hasLocalStorage = false;
-      ragMessage = 'LocalStorage access restricted; in-memory fallback active';
-    }
+    const ethicalCheck = checkEthicalDebateSubstrate();
+    checks['ethical_debate_substrate'] = ethicalCheck;
 
-    if (hasLocalStorage) {
-      passedCount++;
-    }
+    const edgeCheck = checkEdgeGovernanceSanitizer();
+    checks['edge_governance_sanitizer'] = edgeCheck;
 
-    checks['rag_memory_persistence'] = {
-      passed: hasLocalStorage,
-      duration_ms: roundToTwoDecimals(performance.now() - check1Start),
-      message: ragMessage,
-    };
-
-    // Check 2: Sandbox Isolation Capabilities
-    const check2Start = performance.now();
-    const sandboxPassed = hasWeakMap && hasFinalizationRegistry;
-    if (sandboxPassed) {
-      passedCount++;
-    }
-
-    checks['sandbox_isolation'] = {
-      passed: sandboxPassed,
-      duration_ms: roundToTwoDecimals(performance.now() - check2Start),
-      message: sandboxPassed
-        ? 'Sandbox capabilities (WeakMap + FinalizationRegistry) available'
-        : 'Sandbox capabilities running in standard mode',
-    };
-
-    // Check 3: Ethical Debate Substrate
-    const check3Start = performance.now();
-    passedCount++;
-    checks['ethical_debate_substrate'] = {
-      passed: true,
-      duration_ms: roundToTwoDecimals(performance.now() - check3Start),
-      message: 'Prosecutor (Dalek Caan) vs Defender (Jesus) RAG engine online',
-    };
-
-    // Check 4: Edge Governance Security Gatekeeper
-    const check4Start = performance.now();
-    passedCount++;
-    checks['edge_governance_sanitizer'] = {
-      passed: true,
-      duration_ms: roundToTwoDecimals(performance.now() - check4Start),
-      message: 'Blocking rules active for secret leakage, PII, AST_PARSE, and HARDCODED_CRED',
-    };
-
-    const total = 4;
-    const passed = passedCount;
+    const checkValues = Object.values(checks);
+    const total = checkValues.length;
+    const passed = checkValues.filter((c) => c.passed).length;
     const failed = total - passed;
     const is_healthy = total > 0 && failed === 0;
 
-    let memoryUsage: DiagnosticMemoryInfo | undefined;
-    if (typeof performance !== 'undefined' && 'memory' in performance) {
-      const mem = (performance as unknown as { memory?: DiagnosticMemoryInfo }).memory;
-      if (mem && typeof mem === 'object') {
-        memoryUsage = {
-          jsHeapSizeLimit: typeof mem.jsHeapSizeLimit === 'number' ? mem.jsHeapSizeLimit : undefined,
-          totalJSHeapSize: typeof mem.totalJSHeapSize === 'number' ? mem.totalJSHeapSize : undefined,
-          usedJSHeapSize: typeof mem.usedJSHeapSize === 'number' ? mem.usedJSHeapSize : undefined,
-        };
-      }
+    let status: SystemStatus = 'DEGRADED';
+    if (is_healthy) {
+      status = 'HEALTHY';
+    } else if (failed === total) {
+      status = 'CRITICAL_FAILURE';
     }
 
+    const memoryUsage = extractMemoryUsage();
+
     return {
-      status: is_healthy ? 'HEALTHY' : failed === total ? 'CRITICAL_FAILURE' : 'DEGRADED',
+      status,
       timestamp: new Date().toISOString(),
       checks,
       summary: {
@@ -144,7 +181,7 @@ export async function runSystemDiagnostics(): Promise<DiagnosticReport> {
         memoryUsage,
       },
     };
-  } catch (_error: unknown) {
+  } catch {
     return {
       status: 'ERROR',
       timestamp: new Date().toISOString(),
